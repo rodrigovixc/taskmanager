@@ -15,12 +15,18 @@ class Dashboard extends Component
     public $viewMode = 'list';
     public $tasks;
     public $projects;
-    public $tasksByStatus;
+    public $tasksByStatus = [];
     public $showTaskModal = false;
     public $columns = [
         'todo' => 'A Fazer',
         'in_progress' => 'Em Progresso',
         'completed' => 'Concluído'
+    ];
+
+    protected $listeners = [
+        'task-created' => 'loadData',
+        'task-updated' => 'loadData',
+        'close-modal' => 'closeModal'
     ];
 
     public function mount()
@@ -50,9 +56,11 @@ class Dashboard extends Component
             });
 
         // Agrupar tarefas por status
-        $this->tasksByStatus = collect($this->columns)->mapWithKeys(function($title, $status) {
-            return [$status => $this->tasks->where('status', $status)->values()];
-        })->toArray();
+        foreach ($this->columns as $status => $title) {
+            $this->tasksByStatus[$status] = $this->tasks->filter(function ($task) use ($status) {
+                return $task->status === $status;
+            })->values()->all();
+        }
     }
 
     public function toggleView($mode)
@@ -78,6 +86,12 @@ class Dashboard extends Component
     public function toggleTaskModal()
     {
         $this->showTaskModal = !$this->showTaskModal;
+    }
+
+    public function closeModal()
+    {
+        $this->showTaskModal = false;
+        $this->loadData();
     }
 
     public function getStatistics()
