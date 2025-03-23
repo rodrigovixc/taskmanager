@@ -3,7 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Project;
-use App\Policies\Controllers\Controller;use Illuminate\Http\Request;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
 
@@ -11,7 +11,7 @@ class ProjectController extends Controller
 {
     public function index()
     {
-        $projects = Project::where('created_by', Auth::id())
+        $projects = Project::where('user_id', Auth::id())
             ->withCount('tasks')
             ->with(['tasks' => function($query) {
                 $query->select('id', 'project_id', 'status');
@@ -38,37 +38,31 @@ class ProjectController extends Controller
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
-            'color' => 'required|string|max:7|regex:/^#[a-fA-F0-9]{6}$/'
+            'color' => 'nullable|string|max:7',
+            'status' => 'nullable|string|in:todo,in_progress,completed',
+            'due_date' => 'nullable|date'
         ]);
 
-        $project = Project::create([
-            'name' => $validated['name'],
-            'description' => $validated['description'],
-            'color' => $validated['color'],
-            'created_by' => Auth::id()
-        ]);
+        $validated['user_id'] = Auth::id();
+        $project = Project::create($validated);
 
-        return redirect()->route('projects.index')
-            ->with('success', 'Projeto criado com sucesso!');
+        return response()->json($project, 201);
     }
 
     public function show(Project $project)
     {
-        $this->authorize('view', $project);
+        if ($project->user_id !== Auth::id()) {
+            abort(403, 'Unauthorized');
+        }
 
-        $project->load(['tasks' => function($query) {
-            $query->with(['user', 'subtasks', 'comments.user'])
-                ->orderBy('created_at', 'desc');
-        }]);
-
-        return Inertia::render('Projects/Show', [
-            'project' => $project
-        ]);
+        return response()->json($project);
     }
 
     public function edit(Project $project)
     {
-        $this->authorize('update', $project);
+        if ($project->user_id !== Auth::id()) {
+            abort(403, 'Unauthorized');
+        }
 
         return Inertia::render('Projects/Edit', [
             'project' => $project
@@ -77,27 +71,31 @@ class ProjectController extends Controller
 
     public function update(Request $request, Project $project)
     {
-        $this->authorize('update', $project);
+        if ($project->user_id !== Auth::id()) {
+            abort(403, 'Unauthorized');
+        }
 
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
-            'color' => 'required|string|max:7|regex:/^#[a-fA-F0-9]{6}$/'
+            'color' => 'nullable|string|max:7',
+            'status' => 'nullable|string|in:todo,in_progress,completed',
+            'due_date' => 'nullable|date'
         ]);
 
         $project->update($validated);
 
-        return redirect()->route('projects.index')
-            ->with('success', 'Projeto atualizado com sucesso!');
+        return response()->json($project, 200);
     }
 
     public function destroy(Project $project)
     {
-        $this->authorize('delete', $project);
+        if ($project->user_id !== Auth::id()) {
+            abort(403, 'Unauthorized');
+        }
 
         $project->delete();
 
-        return redirect()->route('projects.index')
-            ->with('success', 'Projeto excluído com sucesso!');
+        return response()->json(['message' => 'Project deleted successfully']);
     }
 }
