@@ -1,4 +1,10 @@
 <div>
+    @if($error)
+        <div class="mb-4 p-4 bg-red-100 text-red-700 rounded-lg">
+            {{ $error }}
+        </div>
+    @endif
+
     <div class="py-12">
         <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
             <!-- Estatísticas -->
@@ -88,7 +94,7 @@
                         <div class="bg-gray-100 rounded-lg p-4">
                             <h3 class="font-medium text-gray-900 mb-4">{{ $title }}</h3>
                             <div class="space-y-4">
-                                @foreach($tasksByStatus[$status] ?? [] as $task)
+                                @forelse($tasksByStatus[$status] ?? [] as $task)
                                     <div class="bg-white p-4 rounded-lg shadow" wire:key="task-{{ $task->id }}">
                                         <div class="flex justify-between items-start">
                                             <div>
@@ -113,7 +119,11 @@
                                             </span>
                                         </div>
                                     </div>
-                                @endforeach
+                                @empty
+                                    <div class="text-center py-4 text-gray-500">
+                                        Nenhuma tarefa {{ strtolower($title) }}.
+                                    </div>
+                                @endforelse
                             </div>
                         </div>
                     @endforeach

@@ -5,15 +5,28 @@ namespace App\Livewire;
 use App\Models\Task;
 use App\Models\Project;
 use Livewire\Component;
+use Livewire\Attributes\Rule;
 
 class TaskForm extends Component
 {
-    public $title;
-    public $description;
+    #[Rule('required|min:3')]
+    public $title = '';
+
+    #[Rule('nullable|string')]
+    public $description = '';
+
+    #[Rule('nullable|exists:projects,id')]
     public $project_id;
+
+    #[Rule('nullable|date')]
     public $due_date;
+
+    #[Rule('required|in:low,medium,high')]
     public $priority = 'medium';
+
+    #[Rule('required|in:todo,in_progress,completed')]
     public $status = 'todo';
+
     public $projects;
     public $editing = false;
     public $taskId;
@@ -32,6 +45,11 @@ class TaskForm extends Component
     public function loadTask()
     {
         $task = Task::findOrFail($this->taskId);
+        
+        if ($task->user_id !== auth()->id()) {
+            abort(403);
+        }
+
         $this->title = $task->title;
         $this->description = $task->description;
         $this->project_id = $task->project_id;
@@ -40,48 +58,40 @@ class TaskForm extends Component
         $this->status = $task->status;
     }
 
-    public function rules()
+    public function updated($field)
     {
-        return [
-            'title' => 'required|min:3',
-            'description' => 'nullable',
-            'project_id' => 'nullable|exists:projects,id',
-            'due_date' => 'nullable|date|after:today',
-            'priority' => 'required|in:low,medium,high',
-            'status' => 'required|in:todo,in_progress,completed'
-        ];
+        $this->validateOnly($field);
     }
 
     public function save()
     {
-        $this->validate();
+        $validated = $this->validate();
 
-        if ($this->editing) {
-            $task = Task::findOrFail($this->taskId);
-            $task->update([
-                'title' => $this->title,
-                'description' => $this->description,
-                'project_id' => $this->project_id,
-                'due_date' => $this->due_date,
-                'priority' => $this->priority,
-                'status' => $this->status
-            ]);
-            $this->dispatch('task-updated');
-        } else {
-            Task::create([
-                'title' => $this->title,
-                'description' => $this->description,
-                'project_id' => $this->project_id,
-                'due_date' => $this->due_date,
-                'priority' => $this->priority,
-                'status' => $this->status,
-                'user_id' => auth()->id()
-            ]);
-            $this->dispatch('task-created');
+        try {
+            if ($this->editing) {
+                $task = Task::findOrFail($this->taskId);
+                
+                if ($task->user_id !== auth()->id()) {
+                    abort(403);
+                }
+
+                $task->update($validated);
+                $this->dispatch('task-updated');
+            } else {
+                Task::create(array_merge($validated, [
+                    'user_id' => auth()->id()
+                ]));
+                $this->dispatch('task-created');
+            }
+
+            $this->reset(['title', 'description', 'project_id', 'due_date']);
+            $this->priority = 'medium';
+            $this->status = 'todo';
+            $this->dispatch('close-modal');
+            
+        } catch (\Exception $e) {
+            session()->flash('error', 'Ocorreu um erro ao salvar a tarefa. Por favor, tente novamente.');
         }
-
-        $this->reset(['title', 'description', 'project_id', 'due_date', 'editing', 'taskId']);
-        $this->dispatch('close-modal');
     }
 
     public function render()
