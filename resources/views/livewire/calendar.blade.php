@@ -47,23 +47,41 @@
                                     <span class="text-sm {{ $day['isCurrentMonth'] ? 'text-gray-900' : 'text-gray-400' }}">
                                         {{ \Carbon\Carbon::parse($day['date'])->format('j') }}
                                     </span>
-                                    @if(isset($tasks[$day['date']]) && count($tasks[$day['date']]) > 0)
-                                        <span class="inline-flex items-center justify-center w-5 h-5 text-xs font-semibold text-white bg-blue-500 rounded-full">
-                                            {{ count($tasks[$day['date']]) }}
-                                        </span>
+                                    @if((isset($tasks[$day['date']]) && count($tasks[$day['date']]) > 0) || (isset($projects[$day['date']]) && count($projects[$day['date']]) > 0))
+                                        <div class="flex space-x-1">
+                                            @if(isset($tasks[$day['date']]) && count($tasks[$day['date']]) > 0)
+                                                <span class="inline-flex items-center justify-center w-5 h-5 text-xs font-semibold text-white bg-blue-500 rounded-full">
+                                                    {{ count($tasks[$day['date']]) }}
+                                                </span>
+                                            @endif
+                                            @if(isset($projects[$day['date']]) && count($projects[$day['date']]) > 0)
+                                                <span class="inline-flex items-center justify-center w-5 h-5 text-xs font-semibold text-white bg-purple-500 rounded-full">
+                                                    {{ count($projects[$day['date']]) }}
+                                                </span>
+                                            @endif
+                                        </div>
                                     @endif
                                 </div>
                                 
-                                @if(isset($tasks[$day['date']]))
+                                @if(isset($tasks[$day['date']]) || isset($projects[$day['date']]))
                                     <div class="mt-1 space-y-1">
-                                        @foreach($tasks[$day['date']] as $task)
-                                            <div class="text-xs p-1 rounded truncate {{ 
-                                                $task->status === 'completed' ? 'bg-green-100 text-green-800' : 
-                                                ($task->status === 'in_progress' ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-800')
-                                            }}">
-                                                {{ $task->title }}
-                                            </div>
-                                        @endforeach
+                                        @if(isset($projects[$day['date']]))
+                                            @foreach($projects[$day['date']] as $project)
+                                                <div class="text-xs p-1 rounded truncate" style="background-color: {{ $project->color }}20; color: {{ $project->color }}">
+                                                    {{ $project->name }}
+                                                </div>
+                                            @endforeach
+                                        @endif
+                                        @if(isset($tasks[$day['date']]))
+                                            @foreach($tasks[$day['date']] as $task)
+                                                <div class="text-xs p-1 rounded truncate {{ 
+                                                    $task->status === 'completed' ? 'bg-green-100 text-green-800' : 
+                                                    ($task->status === 'in_progress' ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-800')
+                                                }}">
+                                                    {{ $task->title }}
+                                                </div>
+                                            @endforeach
+                                        @endif
                                     </div>
                                 @endif
                             </div>
@@ -72,14 +90,14 @@
                 </div>
             </div>
 
-            <!-- Modal de Tarefas do Dia -->
+            <!-- Modal de Tarefas e Projetos do Dia -->
             @if($selectedDate)
                 <div class="mt-6">
                     <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
                         <div class="p-6 bg-white border-b border-gray-200">
                             <div class="flex items-center justify-between mb-4">
                                 <h3 class="text-lg font-semibold text-gray-900">
-                                    Tarefas para {{ \Carbon\Carbon::parse($selectedDate)->translatedFormat('d \de F \de Y') }}
+                                    Atividades para {{ \Carbon\Carbon::parse($selectedDate)->translatedFormat('d \de F \de Y') }}
                                 </h3>
                                 <button wire:click="$set('selectedDate', null)" class="text-gray-400 hover:text-gray-500">
                                     <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -88,48 +106,84 @@
                                 </button>
                             </div>
 
-                            @if(isset($tasks[$selectedDate]) && count($tasks[$selectedDate]) > 0)
-                                <div class="space-y-4">
-                                    @foreach($tasks[$selectedDate] as $task)
-                                        <div class="flex items-start space-x-4 p-4 bg-gray-50 rounded-lg">
-                                            <div class="flex-1">
-                                                <div class="flex items-center space-x-2">
-                                                    <h4 class="text-sm font-medium text-gray-900">{{ $task->title }}</h4>
-                                                    @if($task->project)
-                                                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full" 
-                                                            style="background-color: {{ $task->project->color }}20; color: {{ $task->project->color }}">
-                                                            {{ $task->project->name }}
+                            @if(isset($projects[$selectedDate]) && count($projects[$selectedDate]) > 0)
+                                <div class="mb-6">
+                                    <h4 class="text-md font-medium text-gray-900 mb-3">Projetos</h4>
+                                    <div class="space-y-4">
+                                        @foreach($projects[$selectedDate] as $project)
+                                            <div class="flex items-start space-x-4 p-4 rounded-lg" style="background-color: {{ $project->color }}10">
+                                                <div class="flex-1">
+                                                    <div class="flex items-center space-x-2">
+                                                        <h4 class="text-sm font-medium" style="color: {{ $project->color }}">{{ $project->name }}</h4>
+                                                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full {{ 
+                                                            $project->status === 'completed' ? 'bg-green-100 text-green-800' : 
+                                                            ($project->status === 'in_progress' ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-800')
+                                                        }}">
+                                                            {{ __($project->status) }}
                                                         </span>
+                                                    </div>
+                                                    @if($project->description)
+                                                        <p class="mt-1 text-sm text-gray-500">{{ $project->description }}</p>
                                                     @endif
                                                 </div>
-                                                @if($task->description)
-                                                    <p class="mt-1 text-sm text-gray-500">{{ $task->description }}</p>
-                                                @endif
-                                                <div class="mt-2 flex items-center space-x-4">
-                                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {{ 
-                                                        $task->status === 'completed' ? 'bg-green-100 text-green-800' : 
-                                                        ($task->status === 'in_progress' ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-800')
-                                                    }}">
-                                                        {{ __($task->status) }}
-                                                    </span>
-                                                    @if($task->subtasks_count > 0)
-                                                        <span class="text-sm text-gray-500">
-                                                            {{ $task->completed_subtasks_count }}/{{ $task->subtasks_count }} subtarefas
-                                                        </span>
-                                                    @endif
-                                                </div>
+                                                <a href="{{ route('projects.edit', $project) }}" class="text-indigo-600 hover:text-indigo-900">
+                                                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                                                    </svg>
+                                                </a>
                                             </div>
-                                            <a href="{{ route('tasks.edit', $task) }}" class="text-indigo-600 hover:text-indigo-900">
-                                                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
-                                                </svg>
-                                            </a>
-                                        </div>
-                                    @endforeach
+                                        @endforeach
+                                    </div>
                                 </div>
-                            @else
+                            @endif
+
+                            @if(isset($tasks[$selectedDate]) && count($tasks[$selectedDate]) > 0)
+                                <div>
+                                    <h4 class="text-md font-medium text-gray-900 mb-3">Tarefas</h4>
+                                    <div class="space-y-4">
+                                        @foreach($tasks[$selectedDate] as $task)
+                                            <div class="flex items-start space-x-4 p-4 bg-gray-50 rounded-lg">
+                                                <div class="flex-1">
+                                                    <div class="flex items-center space-x-2">
+                                                        <h4 class="text-sm font-medium text-gray-900">{{ $task->title }}</h4>
+                                                        @if($task->project)
+                                                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full" 
+                                                                style="background-color: {{ $task->project->color }}20; color: {{ $task->project->color }}">
+                                                                {{ $task->project->name }}
+                                                            </span>
+                                                        @endif
+                                                    </div>
+                                                    @if($task->description)
+                                                        <p class="mt-1 text-sm text-gray-500">{{ $task->description }}</p>
+                                                    @endif
+                                                    <div class="mt-2 flex items-center space-x-4">
+                                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {{ 
+                                                            $task->status === 'completed' ? 'bg-green-100 text-green-800' : 
+                                                            ($task->status === 'in_progress' ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-800')
+                                                        }}">
+                                                            {{ __($task->status) }}
+                                                        </span>
+                                                        @if($task->subtasks_count > 0)
+                                                            <span class="text-sm text-gray-500">
+                                                                {{ $task->completed_subtasks_count }}/{{ $task->subtasks_count }} subtarefas
+                                                            </span>
+                                                        @endif
+                                                    </div>
+                                                </div>
+                                                <a href="{{ route('tasks.edit', $task) }}" class="text-indigo-600 hover:text-indigo-900">
+                                                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                                                    </svg>
+                                                </a>
+                                            </div>
+                                        @endforeach
+                                    </div>
+                                </div>
+                            @endif
+
+                            @if((!isset($tasks[$selectedDate]) || count($tasks[$selectedDate]) === 0) && (!isset($projects[$selectedDate]) || count($projects[$selectedDate]) === 0))
                                 <p class="text-center text-gray-500 py-4">
-                                    Nenhuma tarefa para este dia.
+                                    Nenhuma atividade para este dia.
                                 </p>
                             @endif
                         </div>

@@ -3,6 +3,7 @@
 namespace App\Livewire;
 
 use App\Models\Task;
+use App\Models\Project;
 use App\Traits\WithNotifications;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
@@ -18,12 +19,13 @@ class Calendar extends Component
     public $currentYear;
     public $selectedDate = null;
     public $tasks = [];
+    public $projects = [];
 
     public function mount()
     {
         $this->currentMonth = Carbon::now()->month;
         $this->currentYear = Carbon::now()->year;
-        $this->loadTasks();
+        $this->loadItems();
     }
 
     public function previousMonth()
@@ -31,7 +33,7 @@ class Calendar extends Component
         $date = Carbon::createFromDate($this->currentYear, $this->currentMonth, 1)->subMonth();
         $this->currentMonth = $date->month;
         $this->currentYear = $date->year;
-        $this->loadTasks();
+        $this->loadItems();
     }
 
     public function nextMonth()
@@ -39,7 +41,7 @@ class Calendar extends Component
         $date = Carbon::createFromDate($this->currentYear, $this->currentMonth, 1)->addMonth();
         $this->currentMonth = $date->month;
         $this->currentYear = $date->year;
-        $this->loadTasks();
+        $this->loadItems();
     }
 
     public function selectDate($date)
@@ -58,27 +60,36 @@ class Calendar extends Component
         $subtask = $task->subtasks()->findOrFail($subtaskId);
         $subtask->update(['is_completed' => !$subtask->is_completed]);
         $this->notifySuccess('Status da subtarefa atualizado!');
-        $this->loadTasks();
+        $this->loadItems();
     }
 
-    public function loadTasks()
+    public function loadItems()
     {
         $startOfMonth = Carbon::create($this->currentYear, $this->currentMonth, 1)->startOfMonth();
         $endOfMonth = $startOfMonth->copy()->endOfMonth();
 
+        // Carrega as tarefas
         $this->tasks = Task::where('user_id', auth()->id())
             ->whereBetween('due_date', [$startOfMonth, $endOfMonth])
-            ->with('project')
+            ->with(['project', 'subtasks'])
             ->get()
             ->groupBy(function($task) {
-                return $task->due_date->format('Y-m-d');
+                return $task->due_date ? $task->due_date->format('Y-m-d') : null;
+            });
+
+        // Carrega os projetos
+        $this->projects = Project::where('user_id', auth()->id())
+            ->whereBetween('due_date', [$startOfMonth, $endOfMonth])
+            ->get()
+            ->groupBy(function($project) {
+                return $project->due_date ? $project->due_date->format('Y-m-d') : null;
             });
     }
 
     public function calendarDays()
     {
         $calendar = [];
-        
+        $today = Carbon::today();
         $date = Carbon::create($this->currentYear, $this->currentMonth, 1);
         $daysInMonth = $date->daysInMonth;
         
@@ -88,17 +99,21 @@ class Calendar extends Component
         $daysInPreviousMonth = $previousMonth->daysInMonth;
         
         for ($i = $firstDayOfWeek - 1; $i >= 0; $i--) {
+            $currentDate = $previousMonth->copy()->setDay($daysInPreviousMonth - $i);
             $calendar[] = [
-                'date' => $previousMonth->copy()->setDay($daysInPreviousMonth - $i),
-                'isCurrentMonth' => false
+                'date' => $currentDate->format('Y-m-d'),
+                'isCurrentMonth' => false,
+                'isToday' => $currentDate->isSameDay($today)
             ];
         }
         
         // Adiciona dias do mês atual
         for ($day = 1; $day <= $daysInMonth; $day++) {
+            $currentDate = $date->copy()->setDay($day);
             $calendar[] = [
-                'date' => $date->copy()->setDay($day),
-                'isCurrentMonth' => true
+                'date' => $currentDate->format('Y-m-d'),
+                'isCurrentMonth' => true,
+                'isToday' => $currentDate->isSameDay($today)
             ];
         }
         
@@ -107,9 +122,11 @@ class Calendar extends Component
         $nextMonth = $date->copy()->addMonth()->startOfMonth();
         
         for ($i = 1; $i <= (6 - $lastDayOfWeek); $i++) {
+            $currentDate = $nextMonth->copy()->setDay($i);
             $calendar[] = [
-                'date' => $nextMonth->copy()->setDay($i),
-                'isCurrentMonth' => false
+                'date' => $currentDate->format('Y-m-d'),
+                'isCurrentMonth' => false,
+                'isToday' => $currentDate->isSameDay($today)
             ];
         }
         
