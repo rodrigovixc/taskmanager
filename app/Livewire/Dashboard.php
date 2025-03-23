@@ -7,6 +7,7 @@ use App\Models\Project;
 use Livewire\Component;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
+use Carbon\Carbon;
 
 #[Layout('layouts.app')]
 class Dashboard extends Component
@@ -17,10 +18,9 @@ class Dashboard extends Component
     public $tasksByStatus;
     public $showTaskModal = false;
     public $columns = [
-        'backlog' => 'Backlog',
         'todo' => 'A Fazer',
         'in_progress' => 'Em Progresso',
-        'done' => 'Concluído'
+        'completed' => 'Concluído'
     ];
 
     public function mount()
@@ -30,42 +30,48 @@ class Dashboard extends Component
 
     public function loadData()
     {
+        // Carregar tarefas com relacionamentos
         $this->tasks = Task::where('user_id', Auth::id())
             ->with(['project', 'subtasks', 'comments', 'attachments'])
-            ->orderBy('created_at', 'desc')
+            ->orderBy('due_date', 'asc')
             ->get();
 
+        // Carregar projetos com contagem de tarefas concluídas
         $this->projects = Project::where('user_id', Auth::id())
-            ->withCount('tasks')
-            ->get();
+            ->withCount(['tasks as total_tasks'])
+            ->withCount(['tasks as completed_tasks' => function($query) {
+                $query->where('status', 'completed');
+            }])
+            ->get()
+            ->map(function($project) {
+                $project->progress = $project->total_tasks > 0 ? 
+                    round(($project->completed_tasks / $project->total_tasks) * 100) : 0;
+                return $project;
+            });
 
-        $this->tasksByStatus = [
-            'backlog' => $this->tasks->where('status', 'backlog')->values(),
-            'todo' => $this->tasks->where('status', 'todo')->values(),
-            'in_progress' => $this->tasks->where('status', 'in_progress')->values(),
-            'done' => $this->tasks->where('status', 'done')->values()
-        ];
+        // Agrupar tarefas por status
+        $this->tasksByStatus = collect($this->columns)->mapWithKeys(function($title, $status) {
+            return [$status => $this->tasks->where('status', $status)->values()];
+        })->toArray();
     }
 
     public function toggleView($mode)
     {
-        $this->viewMode = $mode;
-    }
-
-    public function loadTasks()
-    {
-        $this->tasks = Task::where('user_id', auth()->id())
-            ->with('project')
-            ->get()
-            ->groupBy('status');
+        if (in_array($mode, ['list', 'board'])) {
+            $this->viewMode = $mode;
+        }
     }
 
     public function updateTaskStatus($taskId, $status)
     {
         $task = Task::find($taskId);
-        if ($task && $task->user_id === auth()->id()) {
-            $task->update(['status' => $status]);
-            $this->loadTasks();
+        if ($task && $task->user_id === auth()->id() && array_key_exists($status, $this->columns)) {
+            $task->update([
+                'status' => $status,
+                'updated_at' => now()
+            ]);
+            $this->loadData();
+            $this->dispatch('task-updated');
         }
     }
 
@@ -74,13 +80,27 @@ class Dashboard extends Component
         $this->showTaskModal = !$this->showTaskModal;
     }
 
+    public function getStatistics()
+    {
+        return [
+            'totalTasks' => $this->tasks->count(),
+            'pendingTasks' => $this->tasks->whereIn('status', ['todo', 'in_progress'])->count(),
+            'completedTasks' => $this->tasks->where('status', 'completed')->count(),
+            'overdueTasks' => $this->tasks->where('due_date', '<', now())
+                ->whereIn('status', ['todo', 'in_progress'])
+                ->count(),
+            'upcomingTasks' => $this->tasks->where('due_date', '>=', now())
+                ->where('due_date', '<=', now()->addDays(7))
+                ->whereIn('status', ['todo', 'in_progress'])
+                ->count()
+        ];
+    }
+
     public function render()
     {
-        return view('livewire.dashboard', [
-            'totalTasks' => $this->tasks->count(),
-            'pendingTasks' => $this->tasks->where('status', 'todo')->count(),
-            'completedTasks' => $this->tasks->where('status', 'done')->count(),
-            'overdueTasks' => $this->tasks->where('due_date', '<', now())->where('status', '!=', 'done')->count()
-        ]);
+        return view('livewire.dashboard', array_merge(
+            ['viewMode' => $this->viewMode],
+            $this->getStatistics()
+        ));
     }
 } 
